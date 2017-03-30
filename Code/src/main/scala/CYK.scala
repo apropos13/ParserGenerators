@@ -1,0 +1,143 @@
+package myparser
+
+import myparser.GrammarDef._
+
+
+object CYK{
+
+  //first we define a parse tree stucture
+  sealed trait ParseTree { def node:RHS}
+  case class Node(node:NT, children:List[ParseTree]) extends ParseTree
+  case class Leaf(node:T) extends ParseTree
+
+  //second we define a table to hold all NT
+  type table= collection.mutable.Map[ (Int, Int), List[NT] ]
+
+  //get the rules from a given grammar
+  def get_rules( gram:CFG):List[Rule]= gram match {
+    case CFG(start, rules)=> rules
+    case _ => Nil
+  }
+
+  //get unit rules that match the position of the fragment
+  def get_units( entry:(Int, Int) , r:List[Rule], frag:List[String] ):List[NT]= r match {
+
+    case Nil=> Nil //if empty rule then Nil
+    case hd::tl => hd match {
+      case Rule(left,right) => right match {  //match rule
+        case List(T(e))=> if ( frag(entry._1) == e ) {left::get_units(entry, tl, frag)  } else { get_units(entry,tl, frag) } 
+        case _=>get_units(entry, tl, frag)
+      }
+       
+    }
+
+  }
+
+  //compare a list of NT agains the list of Rules
+  def comp(a_candidate:List[NT], r:List[Rule]):List[NT] = r match{
+    case Nil=> Nil
+    case hd::tl=> hd match {
+      case Rule(a,b) => if (b==a_candidate) { a::comp(a_candidate,tl) } else {comp(a_candidate, tl)}
+    }
+
+
+  }
+
+  //This functions decides how to update the table entries in the parser function 
+  def get_producing_lhs ( candidate_rhs:List[List[NT]], r:List[Rule]):List[NT]= candidate_rhs match {
+    case first::rest=> comp(first, r):::get_producing_lhs(rest, r)
+    case Nil=>Nil
+
+  }
+
+  //---------------END OF HELPER FUNCTIONS--------------------
+
+  def cyk_recogniser( gram:CFG,  frag:List[String] ) = {
+
+    var mytable:table= collection.mutable.Map() //table of NT's starts empty
+    var rules:List[Rule] = get_rules(gram)
+
+    for ( j <- 1 to frag.length) {
+
+      var entry:(Int,Int)= (j-1,j)
+      var unit_rules:List[NT]= get_units(entry, rules, frag)
+      mytable.update( entry , unit_rules)
+     // println("Unit: at "+ entry + "-> "+ unit_rules)
+
+      //second loop, notice that we dont get in here if j<2
+      for (i <- (j-2) to 0 by -1) {
+
+        //third loop
+        for ( k <- (i+1) to (j-1) ) {
+
+          //find rules A->BC with B in table[i,k] and C in table[k,j]
+
+          //First get B
+          var b_index:(Int,Int)=(i,k)
+          var b_list=mytable.get(b_index) match {
+            case Some(l)=>l
+            case None => Nil  }
+
+          //Now get C
+          var c_index:(Int,Int)=(k,j)
+          var c_list=mytable.get(c_index)  match {
+            case Some(l)=>l
+            case None => Nil }
+          
+          var distribute = for( b<- b_list ; c<-c_list) yield List(b,c)
+         
+         
+          var lhs:List[NT]= get_producing_lhs(distribute, rules)
+
+          var nested_entry:(Int,Int)=(i,j)
+          var old_content= mytable.get(nested_entry) match {
+            case Some(l)=>l
+            case None => Nil
+          }
+
+          var new_content= old_content:::lhs
+          mytable.update(nested_entry, new_content)
+         // println( "at: j= "+j+",i= "+i+" k=, "+k+ "--b:="+b_list+" --c:=" + c_list+ "-- distribute:= "+ distribute+ "-- new content:="+new_content )
+
+        } //end of k loop
+
+      } //end of i loop
+
+    }//end of j loop
+
+
+   /* 
+    for (h <- 0 to frag.length) {
+      for (k<-0 to frag.length) {
+        var d:(Int,Int)=(k,h)
+        if ( mytable.get(d) == None)
+        {
+          println("at: "+k+","+h+"-->NONE")
+        }
+        else
+        {
+          println("at: "+k+","+h+"-->"+ mytable(d) )
+        }
+      }
+    }
+    */
+
+
+    //Finally if the sentence can be parsed then at position (0,len(frag)) we must have the start symbol
+    var last_entry= (0, frag.length)
+    var last_element=  mytable.get(last_entry) match {
+      case Some(l)=>l
+      case None => Nil
+    }
+    var start_symbol = gram match {
+      case CFG(s,_)=> s
+      case _ => Nil
+    }
+
+    if ( last_element.contains(start_symbol)) {true  } //Fragment can be parsed
+    else {false}
+
+  } //end of cyk_parser
+
+
+}

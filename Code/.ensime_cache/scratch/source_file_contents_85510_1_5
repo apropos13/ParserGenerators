@@ -1,0 +1,42 @@
+package myparser
+ /* 
+README: 
+This project was compiled using a Scala compiler;
+ Scala 2.12.1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_121)
+ To Run:fsc -d classes FilterBlindAlleyRules.scala && scala -classpath classes FilterBlindAlleyRules
+
+Assignment #4
+Program: FilterBlindAlleyRules.scala 
+Authors: Panos Karagiannis (ID: 1309484), Kostas Zambetakis
+
+  */
+
+
+
+class GrammarDef{
+
+   /* Implementation choices: 
+   * We represent RHS of a rule as trait which correspond
+   * to Java Interfaces and provide a good alternative for enums.
+   * A sealed trait may not be directly extended unless
+   * the inheriting class is in the same source file. That allows the compiler to
+   * warn us of exhaustive match cases. Moreover, we choose to use 
+   * final classes since they should never be extended.
+    */
+
+     //definition of the RHS
+   sealed trait RHS
+   final case class T(t:String) extends RHS 
+   final case class NT(nt:Symbol) extends RHS
+
+   //definition of Rule
+  final case class Rule(left: NT,right:List[RHS]) { def print_one:Unit= println( left+"->"+right)}
+
+  
+
+    
+
+
+   //definition of Grammar
+   final case class CFG(  start: NT, rules:List[Rule])
+}

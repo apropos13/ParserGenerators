@@ -1,0 +1,106 @@
+package myparser
+
+import myparser.GrammarDef._
+
+import myparser.Top_down_parser._
+
+ /* 
+README: 
+This project was compiled using a Scala compiler
+ Scala 2.12.1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_121)
+ To Run:fsc -d classes FilterBlindAlleyRules.scala && scala -classpath classes FilterBlindAlleyRules
+
+Assignment #4
+Program: FilterBlindAlleyRules.scala 
+Authors: Panos Karagiannis (ID: 1309484), Kostas Zambetakis
+
+  */
+
+
+
+object FilterBlindAlleyRules {
+
+   
+   def is_terminal(s: RHS):Boolean= s match {
+      case NT(nt)=> false 
+      case T(t)=>true 
+   } 
+
+
+   //returns true if rhs the rule includes only terminal symbols
+   def rule_of_terminals(r:Rule):Boolean= r match {
+      case Rule(nt, li)=> li.forall(elem=> is_terminal(elem))
+   }
+
+   //In a list of rules, find those consisting only of terminal strings and add them to a seperate list 
+   def seperate_rules(r:List[Rule]):List[Rule]= r.filter(rule_of_terminals(_))
+
+   //In a list of rules, take the left hand side Non terminal symbol of every rule 
+   def take_lhs(r:List[Rule]):List[NT]= r match {
+      case hd::tl => {hd match {
+         case Rule(lhs,rhs) => lhs::take_lhs(tl)
+         }}
+      case _ => List[NT]()
+   }
+
+
+
+
+   //add a rule to rnew if we find the rhs of a rule in r to be contained as lhs in rnew 
+   def take_one_step(r:List[Rule],rnew:List[Rule]):List[Rule]= r match {
+      case hd::tl => {hd match {
+         case Rule(lhs,rhs)=> 
+            if (rhs.filter(!is_terminal(_)).forall(take_lhs(rnew).contains)) //we only need to compare the subset of NT of a given rule
+               {hd::take_one_step(tl,rnew)} 
+            else 
+               {take_one_step(tl,rnew)}
+         }}
+      case _ => List[Rule]()
+   }
+
+   def compute_fixed_point(x:List[Rule], f:List[Rule]=>List[Rule]):List[Rule]= {
+      if (x == f(x) )
+         {x}
+      else 
+         {compute_fixed_point(f(x), f )}
+   }
+
+
+   def filter_blind_alleys(gram:CFG):List[Rule]= gram match {
+      case CFG(start, rules)=> compute_fixed_point(seperate_rules(rules) , take_one_step(rules, _ :List[Rule]) ) 
+   }
+
+   //test cases in main
+   def printList(args: TraversableOnce[_]): Unit = {
+  args.foreach(println)
+   }
+
+
+
+
+  //-------------CONVERT TO CNF----------------------
+
+  def is_unitRule(r:Rule):Boolean= r match {
+    case Rule(lhs, rhs) => rhs match{
+      case List(NT(b)) => true 
+    }
+    case _ =>false
+
+  }
+
+  def makeCNFRules(r:List[Rule], r_new:List[Rule]):List[Rule]= r match {
+    case hd::tl => {
+      if( is_unitRule(hd) ) //if this is a unit rule
+      {hd::r_new}
+      else
+      {r_new}
+
+
+    }
+    case _ =>Nil
+
+
+  }
+
+  
+}

@@ -1,0 +1,90 @@
+package myparser
+
+import myparser.GrammarDef._
+
+import myparser.Top_down_parser._
+
+import myparser.CYK._
+
+import FilterBlindAlleyRules._
+
+
+ /* 
+README: 
+This project was compiled using a Scala compiler
+ Scala 2.12.1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_121)
+ To Run:fsc -d classes FilterBlindAlleyRules.scala && scala -classpath classes FilterBlindAlleyRules
+
+Assignment #4
+Program: FilterBlindAlleyRules.scala 
+Authors: Panos Karagiannis (ID: 1309484), Kostas Zambetakis
+ */
+
+
+
+object PrintThings {
+   def main(args: Array[String]) {
+      println("---------TESTING---------")
+
+     val  top_down_rules =
+       List(
+         Rule (NT('Ios), List( NT('Linux),NT ('Unix) )),
+         Rule (NT('Ios), List( NT ('Windows))),
+         Rule (NT('Ios), List(T ("I"), NT ('Windows), T("S"))),
+         Rule (NT('Unix), List( T("U"))),
+         Rule (NT('Windows), List( T("P"))),
+         Rule (NT('Windows), List( T("U"))),
+         Rule (NT('Windows), List( T("L"))),
+         Rule (NT('Unix), List( T("("), NT('Linux), T(")")   )),
+         Rule (NT('Linux), List ( T("I")))
+       )
+
+      val other_rules=
+       List(
+         Rule (NT('Goal), List( NT('Expr))),
+         Rule (NT('Expr), List( NT ('Term), T("+"), NT('Expr))), //notice right recursion
+         Rule (NT('Expr), List( NT ('Term), T("-"), NT('Expr))),
+         Rule (NT('Expr), List( NT('Term))),
+         Rule (NT('Term), List( NT ('Factor), T("*"), NT('Term))),
+         Rule (NT('Term), List( NT('Factor), T("-div-"), NT('Term))),
+           Rule (NT('Term), List( NT('Factor))),
+         Rule (NT('Factor), List( T("10"))),
+         Rule (NT('Factor), List( T("x")   )),
+         Rule (NT('Factor), List( T("y")   )),
+         Rule (NT('Factor), List( T("z")   )),
+          Rule (NT('Factor), List( T("2")   )),
+         Rule (NT('Factor), List( T("("), NT('Expr), T(")")   ))
+         
+        
+       )
+
+
+      def accept(frag:List[String], derivation:List[Rule])= frag match {
+    case Nil => Some((derivation, List[String]()))
+    case _ => None
+
+  }
+
+     val os_grammar=CFG(NT('Ios), top_down_rules)
+     val frag= List( "I","U","S")
+
+     val td=top_down_parse(os_grammar, accept, frag)
+     println("-----")
+     print_derivations(td)
+     println("-----")
+
+
+
+     val expr_gram=CFG(NT('Goal), other_rules)
+
+
+     //val expr_frag= "x+2*y-x*z"
+     val expr_frag= List("x","+","2","*","y","-","x","*","z")
+     println("Derivation of: " +expr_frag.mkString("{ ", " , ", " }") )
+     print_derivations(top_down_parse(expr_gram, accept, expr_frag))
+
+
+   }
+
+
+}

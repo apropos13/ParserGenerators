@@ -1,0 +1,152 @@
+package myparser
+
+import myparser.GrammarDef._
+
+
+object CYK{
+
+  //first we define a parse tree stucture
+  sealed trait ParseTree { def node:RHS}
+  case class Node(node:NT, children:List[ParseTree]) extends ParseTree
+  case class Leaf(node:T) extends ParseTree
+
+  //second we define a table to hold all NT
+  type table= Map[ (Int, Int), List[NT] ]
+
+  //get the rules from a given grammar
+  def get_rules( gram:CFG):List[Rule]= gram match {
+    case CFG(start, rules)=> rules
+    case _ => Nil
+  }
+
+  //get unit rules that match the position of the fragment
+  def get_units( entry:(Int, Int) , r:List[Rule], frag:List[String] ):List[NT]= r match {
+
+    case Nil=> Nil //if empty rule then Nil
+    case hd::tl => hd match {
+      case Rule(left,right) => right match {  //match rule
+        case List(T(e))=> if ( frag(entry._1) == e ) {left::get_units(entry, tl, frag)  } else { get_units(entry,tl, frag) } 
+        case _=>get_units(entry, tl, frag)
+      }
+       
+    }
+
+  }
+
+  def compare_rhs_to_NTs(  candidate_rhs:List[List[NT]], right:List[RHS]) = { 
+
+  }
+
+  def get_producing_lhs ( candidate_rhs:List[List[NT]], r:List[Rule]):List[NT]= candidate_rhs match {
+    case first::rest=> r match {
+      case hd::tl => hd match {
+        case Rule(a,b)=> if (b==first) {a::get_producing_lhs(rest, r) } else { println("b= "+b+"---f= "+first);get_producing_lhs(candidate_rhs, tl)}
+        case _ => Nil
+      }
+      case Nil => Nil //end of rules 
+
+    }
+    case Nil =>Nil
+
+  }
+
+
+  def cyk_parser( gram:CFG,  frag:List[String] ) = {
+
+    var mytable:table= Map() //table of NT's starts empty
+    var rules:List[Rule] = get_rules(gram)
+
+    for ( j <- 1 to frag.length) {
+
+      var entry:(Int,Int)= (j-1,j)
+      var unit_rules:List[NT]= get_units(entry, rules, frag)
+      mytable += ( entry -> unit_rules)
+      //println("at "+ entry + "-> "+ unit_rules)
+
+
+      //second loop, notice that we dont get in here if j<2
+      for (i <- (j-2) to 0 by -1) {
+
+        //third loop
+        for ( k <- (i+1) to (j-1) ) {
+
+          //find rules A->BC with B in table[i,k] and C in table[k,j]
+
+          //First get B
+          var b_index:(Int,Int)=(i,k)
+          var b_list=mytable.get(b_index) match {
+            case Some(l)=>l
+            case None => Nil
+          }
+         
+
+          //Now get C
+          var c_index:(Int,Int)=(k,j)
+          var c_list=mytable.get(c_index)  match {
+            case Some(l)=>l
+            case None => Nil
+          }
+
+          
+          var foo= List( List( NT('DT), NT('NN)),  List( NT('VT), NT('NP)) )
+          var dummylhs= get_producing_lhs(foo, rules)
+           println("dummylhs="+dummylhs)
+           
+
+
+          /*
+          
+          var distribute = for( b<- b_list ; c<-c_list) yield List(b,c)
+         
+          var lhs:List[NT]= get_producing_lhs(distribute, rules)
+         // println("lhs="+lhs)
+          
+
+
+          var nested_entry:(Int,Int)=(i,j)
+          mytable+= (nested_entry -> lhs)
+         // println("at "+ nested_entry + "-> "+ lhs)
+
+           
+           */
+
+
+
+
+        }
+
+      } //end of i loop
+
+
+    }//end of j loop
+
+
+
+    for (h <- 0 to 5) {
+      for (k<-0 to 5) {
+        var d:(Int,Int)=(k,h)
+        if ( mytable.get(d) == None)
+        {
+          //println("at: "+k+","+h+"-->NONE")
+        }
+        else {
+          //println("at: "+k+","+h+"-->"+ mytable(d) )
+        }
+
+      }
+    }
+    // println(mytable)
+
+
+
+
+
+
+  }
+
+
+
+
+  def hello():Unit = {println("CYK--moving")}
+
+}

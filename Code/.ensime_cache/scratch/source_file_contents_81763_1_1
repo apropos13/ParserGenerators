@@ -1,0 +1,316 @@
+
+ /* 
+README: 
+This project was compiled using a Scala compiler;
+ Scala 2.12.1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_121)
+ To Run:fsc -d classes FilterBlindAlleyRules.scala && scala -classpath classes FilterBlindAlleyRules
+
+Assignment #4
+Program: FilterBlindAlleyRules.scala 
+Authors: Panos Karagiannis (ID: 1309484), Kostas Zambetakis
+
+  */
+
+
+
+object FilterBlindAlleyRules{
+
+   /* Implementation choices: 
+   * We represent RHS of a rule as trait which correspond
+   * to Java Interfaces and provide a good alternative for enums.
+   * A sealed trait may not be directly extended unless
+   * the inheriting class is in the same source file. That allows the compiler to
+   * warn us of exhaustive match cases. Moreover, we choose to use 
+   * final classes since they should never be extended.
+    */
+
+     //definition of the RHS
+   sealed trait RHS
+   final case class T(t:String) extends RHS 
+   final case class NT(nt:Symbol) extends RHS
+
+   //definition of Rule
+  final case class Rule(left: NT,right:List[RHS]) { def print_one:Unit= println( left+"->"+right)}
+
+  
+
+    
+
+
+   //definition of Grammar
+   final case class CFG(  start: NT, rules:List[Rule])
+
+
+
+   def is_terminal(s: RHS):Boolean= s match {
+      case NT(nt)=> false 
+      case T(t)=>true 
+   } 
+
+
+   //returns true if rhs the rule includes only terminal symbols
+   def rule_of_terminals(r:Rule):Boolean= r match {
+      case Rule(nt, li)=> li.forall(elem=> is_terminal(elem))
+   }
+
+   //In a list of rules, find those consisting only of terminal strings and add them to a seperate list 
+   def seperate_rules(r:List[Rule]):List[Rule]= r.filter(rule_of_terminals(_))
+
+   //In a list of rules, take the left hand side Non terminal symbol of every rule 
+   def take_lhs(r:List[Rule]):List[NT]= r match {
+      case hd::tl => {hd match {
+         case Rule(lhs,rhs) => lhs::take_lhs(tl)
+         }}
+      case _ => List[NT]()
+   }
+
+
+
+
+   //add a rule to rnew if we find the rhs of a rule in r to be contained as lhs in rnew 
+   def take_one_step(r:List[Rule],rnew:List[Rule]):List[Rule]= r match {
+      case hd::tl => {hd match {
+         case Rule(lhs,rhs)=> 
+            if (rhs.filter(!is_terminal(_)).forall(take_lhs(rnew).contains)) //we only need to compare the subset of NT of a given rule
+               {hd::take_one_step(tl,rnew)} 
+            else 
+               {take_one_step(tl,rnew)}
+         }}
+      case _ => List[Rule]()
+   }
+
+   def compute_fixed_point(x:List[Rule], f:List[Rule]=>List[Rule]):List[Rule]= {
+      if (x == f(x) )
+         {x}
+      else 
+         {compute_fixed_point(f(x), f )}
+   }
+
+
+   def filter_blind_alleys(gram:CFG):List[Rule]= gram match {
+      case CFG(start, rules)=> compute_fixed_point(seperate_rules(rules) , take_one_step(rules, _ :List[Rule]) ) 
+   }
+
+   //test cases in main
+   def printList(args: TraversableOnce[_]): Unit = {
+  args.foreach(println)
+   }
+
+  /* --------------TOP DOWN-----------------------
+ The generated parser is top-down, left-to-right, (and depth-first), thus cannot handle left recursion:
+ N -> NS would cause itself to be applied recursively with no terminal symbols resolved.
+ Similarly, indirect left recursions like N -> At, A -> Na would also cause stack overflow.
+ Also, the generated parser is considered inefficient, which is common in  designs that involve backtracking
+ (whose time complexity is hard to evaluate in most cases).
+ Efficiency is usually gained by introducing premises in the language; 
+for example, LL(1); lookaheads, first() set, and backtracking removal.
+   */
+
+  //Returns the rules for a given NT symbol 
+  def gimme_rules( gram:CFG, symbol:NT):List[List [RHS] ]= gram match {
+    case CFG(start, rules)=> rules match {
+      case Nil => Nil
+      case hd::tl => hd match {
+        case Rule(a,b) =>
+          if (a ==symbol) {b::(gimme_rules(CFG(start, tl), symbol)) }
+          else { gimme_rules(CFG(start, tl), symbol)}
+
+      }
+
+    }
+
+  }
+
+
+  //Examines each symbol of the RHS of a rule and returns whatever the acceptor tells it.
+  // the role of the acceptor is to be able to return incomplete derivations given a fragment.
+  //So if a fragment is not able to be parsed by the grammar then maybe some part of it can be parsed
+  //The specifications for what is accepted and what is not accepted as a valid derivation is
+  //incorporated in the accept_derivation function.
+  //If the accept_derivation only accepts empty suffixes, then only a complete derivation will be accepted
+
+  def examine_rhs( gram:CFG,  rhs: List[RHS],
+    accept_derivation:(List[String],List[Rule])=>  Option[(List[Rule], List[String])],
+    frag:List[String], derivation:List[Rule] ): Option[(List[Rule], List[String])] = rhs match{
+    case Nil => accept_derivation(frag,derivation)
+    case hd::tl =>  hd match {
+        case NT(nt)=>init_parser(gram, NT(nt),(examine_rhs(gram,tl, accept_derivation, _ :List[String] , _ :List[Rule] ) ), frag, derivation)
+        case T(t) => 
+          if (frag==Nil) {None}
+          else if ( t== frag.head ) {examine_rhs(gram , tl ,accept_derivation, frag.tail, derivation)}
+          else {None}
+      }
+  }
+  
+
+  //Examines each rule seperately for any given symbol. This function helps us traverse through all the rules of
+  //a non terminal symbol up until we find an acceptable derivation
+  def examine_rules( gram:CFG,symbol:NT, ListOfRhs: List[List[RHS]] , accept_derivation:(List[String],List[Rule])=>  Option[(List[Rule], List[String])],
+    frag:List[String],derivation:List[Rule] ): Option[(List[Rule], List[String])] = ListOfRhs  match{
+    case Nil => None
+    case first_rule::rest_rule => (examine_rhs(gram, first_rule,accept_derivation, frag, Rule(symbol, first_rule)::derivation) ) match
+    {
+      case None => examine_rules( gram, symbol, rest_rule,accept_derivation, frag, derivation)
+      case Some((d,a)) => Some((d,a))
+    }
+
+     
+  }
+
+  //initiates the parsing process by examining all the rules for a given NT symbol
+  def init_parser (gram:CFG, symbol:NT, accept_derivation:(List[String],List[Rule])=>  Option[(List[Rule], List[String])], frag:List[String], derivation:List[Rule])={
+    if (gimme_rules(gram, symbol) != Nil)
+    { examine_rules(gram , symbol, gimme_rules(gram, symbol),accept_derivation, frag, derivation) }
+    else
+      {None}
+
+  }
+
+  //parser definition
+  def top_down_parse( gram:CFG,  accept_derivation:(List[String],List[Rule])=>  Option[(List[Rule], List[String])], frag:List[String])= gram match {
+    case CFG(start,rules) => init_parser(gram, start, accept_derivation, frag, List[Rule]() )
+
+  }
+
+ 
+
+  //strips the rule from NT and T symbols , for visually nice representation
+  def strip_rule( r:List[RHS]):List[Any] = r match {
+    case hd::tl => hd match {
+      case NT(a)=> a::strip_rule(tl)
+      case T(a)=> a::strip_rule(tl)
+    }
+    case Nil=> Nil
+
+  }
+
+   //visually nice representation of derivations
+  //this function prints them in reverse order since when we create the derivations
+  //for efficiency purposes we only append at the end of the list
+  //also note that the derivation contains the acceptable frag, which we discard since we dont need it
+  def print_derivations( d:Option[(List[Rule], List[String])]):Unit= d match {
+    case Some((rules,f))=> rules match{
+      case hd::tl => hd match {
+        case Rule(NT(a),b)=> print_derivations(Some((tl,List())) ); println(a+"->"+ strip_rule(b).mkString(" ", "  ", " ")  )
+      }
+      case Nil => Nil
+    }
+    case None=> Nil
+
+  }
+   
+
+
+  //-------------CONVERT TO CNF----------------------
+
+  def is_unitRule(r:Rule):Boolean= r match {
+    case Rule(lhs, rhs) => rhs match{
+      case List(NT(b)) => true 
+    }
+    case _ =>false
+
+  }
+
+  def makeCNFRules(r:List[Rule], r_new:List[Rule]):List[Rule]= r match {
+    case hd::tl => {
+      if( is_unitRule(hd) ) //if this is a unit rule
+      {hd::r_new}
+      else
+      {r_new}
+
+
+    }
+    case _ =>Nil
+
+
+  }
+
+   def main(args: Array[String]) {
+      println("---------TESTING---------")
+
+      val dummyRule=Rule( NT('PAO), List(T("(") , T("panos"), NT('panos) ))
+      //println(rule_of_terminals(dummyRule))
+
+      val rules=List(
+         Rule( NT('Fox) , List(T("5") , NT ('Wolf), T("j") )),
+         Rule (NT('Dolphin), List(NT('Wolf))),
+         Rule (NT('Bear), List(NT('Shark))),
+         Rule (NT('Fox), List(NT('Dolphin), NT('Shark))),
+         Rule (NT('Shark), List(T("6")))
+         )
+
+      val empty_rules= List[Rule]()
+      val term_rules= seperate_rules(rules) 
+
+      val step= take_one_step(rules, term_rules)
+      //println(step)
+      val my_grammar= CFG(NT('Fox), rules)
+      val filtered_gram= filter_blind_alleys(my_grammar)
+      //printList(filtered_gram)
+
+     //println(take_lhs(rules))
+
+     val get_rules= gimme_rules(my_grammar, NT('Fox))
+     //println(get_rules)
+
+     val  top_down_rules =
+       List(
+         Rule (NT('Ios), List( NT('Linux),NT ('Unix) )),
+         Rule (NT('Ios), List( NT ('Windows))),
+         Rule (NT('Ios), List(T ("I"), NT ('Windows), T("S"))),
+         Rule (NT('Unix), List( T("U"))),
+         Rule (NT('Windows), List( T("P"))),
+         Rule (NT('Windows), List( T("U"))),
+         Rule (NT('Windows), List( T("L"))),
+         Rule (NT('Unix), List( T("("), NT('Linux), T(")")   )),
+         Rule (NT('Linux), List ( T("I")))
+       )
+
+      val other_rules=
+       List(
+         Rule (NT('Goal), List( NT('Expr))),
+         Rule (NT('Expr), List( NT ('Term), T("+"), NT('Expr))), //notice right recursion
+         Rule (NT('Expr), List( NT ('Term), T("-"), NT('Expr))),
+         Rule (NT('Expr), List( NT('Term))),
+         Rule (NT('Term), List( NT ('Factor), T("*"), NT('Term))),
+         Rule (NT('Term), List( NT('Factor), T("-div-"), NT('Term))),
+           Rule (NT('Term), List( NT('Factor))),
+         Rule (NT('Factor), List( T("10"))),
+         Rule (NT('Factor), List( T("x")   )),
+         Rule (NT('Factor), List( T("y")   )),
+         Rule (NT('Factor), List( T("z")   )),
+          Rule (NT('Factor), List( T("2")   )),
+         Rule (NT('Factor), List( T("("), NT('Expr), T(")")   ))
+         
+        
+       )
+
+
+      def accept(frag:List[String], derivation:List[Rule])= frag match {
+    case Nil => Some((derivation, List[String]()))
+    case _ => None
+
+  }
+
+     val os_grammar=CFG(NT('Ios), top_down_rules)
+     val frag= List( "I","U","S")
+
+     val td=top_down_parse(os_grammar, accept, frag)
+     println("-----")
+     print_derivations(td)
+      println("-----")
+
+     
+
+
+     val expr_gram=CFG(NT('Goal), other_rules)
+
+
+     //val expr_frag= "x+2*y-x*z"
+     val expr_frag= List("x","+","2","*","y","-","x","*","z")
+     println("Derivation of: " +expr_frag.mkString("{ ", " , ", " }") )
+     print_derivations(top_down_parse(expr_gram, accept, expr_frag))
+
+
+   }
+}

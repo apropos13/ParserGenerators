@@ -1,0 +1,16 @@
+init file:
+
+/Users/panos/.emacs
+
+/Users/panos/.emacs.d/init.el
+
+/Users/panos/.emacs.d/
+
+to change theme:
+
+M-x customize-theme
+
+Packages:
+
+M-x package-list-packages
+

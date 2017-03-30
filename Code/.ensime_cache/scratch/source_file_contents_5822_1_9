@@ -1,0 +1,63 @@
+package myparser
+
+import myparser.GrammarDef._
+
+import myparser.CYK._
+
+object PrintCYK {
+
+  def main(args: Array[String]) {
+
+     val other_rules=
+       List(
+         Rule (NT('S), List( NT('NP), NT('VP))),
+         Rule (NT('S), List( NT('NP), NT('VB))),
+
+         Rule (NT('VP), List( NT('VI))),
+         Rule (NT('VP), List( NT('VT), NT('NP))),
+         Rule (NT('VP), List( NT('VP), NT('PP))),
+
+         Rule (NT('NP), List( NT('DT), NT('NN))),
+         Rule (NT('NP), List( NT('NP), NT('PP))),
+
+         Rule (NT('PP), List( NT('P), NT('NP))),
+
+         Rule (NT('VI), List( T("sleeps"))),
+         Rule (NT('VT), List( T("saw")   )),
+
+         Rule (NT('NN), List( T("dog")   )),
+         Rule (NT('NN), List( T("man")   )),
+         Rule (NT('NN), List( T("telescope")  )),
+
+         Rule (NT('DT), List( T("the"))),
+
+         Rule (NT('IN), List( T("with")   )),
+         Rule (NT('IN), List( T("in")   ))
+
+         
+         
+        
+       )
+
+    val expr_gram=CFG(NT('Goal), other_rules)
+
+
+     //val expr_frag= "x+2*y-x*z"
+    val expr_frag= List("the","dog","saw","the","man")
+
+    var foo= List( List( NT('DT), NT('NN)),  List( NT('VT), NT('NP)) )
+    var dummylhs= get_producing_lhs(foo, other_rules)
+    //println("dummylhs="+dummylhs)
+           
+
+    cyk_parser(expr_gram, expr_frag)
+
+
+
+
+  }
+
+
+
+
+}
